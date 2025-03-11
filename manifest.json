@@ -1,0 +1,77 @@
+// manifest.json
+{
+  "manifest_version": 3,
+  "name": "Captcha Confetti",
+  "version": "1.0",
+  "description": "Celebrates captcha completion with confetti",
+  "permissions": ["activeTab"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["confetti.js", "content.js"]
+    }
+  ]
+}
+
+// content.js
+// We need to detect captcha completion
+// Common captchas include reCAPTCHA and hCaptcha
+
+// Load confetti library (cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js)
+// But for extension we bundle it as confetti.js
+
+function triggerConfetti() {
+  confetti({
+    particleCount: 100,
+    spread: 70,
+    origin: { y: 0.6 }
+  });
+}
+
+// The tricky part: detecting captcha completion
+// For reCAPTCHA v2:
+const observer = new MutationObserver((mutations) => {
+  mutations.forEach((mutation) => {
+    if (mutation.type === 'attributes' && mutation.attributeName === 'aria-checked') {
+      const captchaCheckbox = mutation.target;
+      if (captchaCheckbox.getAttribute('aria-checked') === 'true') {
+        triggerConfetti();
+      }
+    }
+  });
+});
+
+// For reCAPTCHA v2
+function watchRecaptcha() {
+  const recaptchaCheckboxes = document.querySelectorAll('.recaptcha-checkbox');
+  recaptchaCheckboxes.forEach(checkbox => {
+    observer.observe(checkbox, { attributes: true });
+  });
+}
+
+// For hCaptcha
+function watchHcaptcha() {
+  const hcaptchaCheckboxes = document.querySelectorAll('.checkbox[aria-checked="false"]');
+  hcaptchaCheckboxes.forEach(checkbox => {
+    observer.observe(checkbox, { attributes: true });
+  });
+}
+
+// For reCAPTCHA v3, which is invisible, we'd need to hook into network requests
+// to see successful completion. That requires more permissions and complexity.
+
+// Periodically check for captchas that may have been added to the page
+function checkForCaptchas() {
+  watchRecaptcha();
+  watchHcaptcha();
+}
+
+// Run initial check
+checkForCaptchas();
+
+// Set up periodic checks for dynamically loaded captchas
+setInterval(checkForCaptchas, 2000);
+
+// Also watch for DOM changes that might add captchas
+const bodyObserver = new MutationObserver(checkForCaptchas);
+bodyObserver.observe(document.body, { childList: true, subtree: true });
