@@ -3,17 +3,13 @@
   "name": "Captcha Confetti",
   "version": "1.0",
   "description": "Celebrates captcha completion with confetti",
-  "permissions": ["activeTab"],
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["confetti.js"],
-      "matches": ["<all_urls>"]
+      "js": ["content.js"],
+      "run_at": "document_start"
     }
   ]
 }
