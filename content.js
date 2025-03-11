@@ -16,123 +16,122 @@
 // Simple version of content.js for Captcha Confetti
 console.log("[CaptchaConfetti] Extension loaded");
 
-// First, inject the confetti library
-const script = document.createElement('script');
-script.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js';
-document.head.appendChild(script);
+// Inject a script tag with our code directly into the page
+function injectScript(code) {
+  const script = document.createElement('script');
+  script.textContent = code;
+  (document.head || document.documentElement).appendChild(script);
+  script.remove();
+}
 
-// Wait for script to load
-script.onload = function() {
-  console.log("[CaptchaConfetti] Confetti library loaded");
-  init();
-};
-
-script.onerror = function() {
-  console.error("[CaptchaConfetti] Failed to load confetti library");
-};
-
-function init() {
-  // Add test function to window
-  document.addEventListener('DOMContentLoaded', () => {
-    window.testCaptchaConfetti = function() {
-      console.log("[CaptchaConfetti] Testing confetti");
-      const confettiScript = `
+// Add the confetti library and our functions to the page
+injectScript(`
+  // First load the confetti library
+  (function() {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js';
+    script.onload = function() {
+      console.log("[CaptchaConfetti] Confetti library loaded");
+      
+      // Add test function to window
+      window.testCaptchaConfetti = function() {
+        console.log("[CaptchaConfetti] Testing confetti");
         confetti({
           particleCount: 100,
           spread: 70,
           origin: { y: 0.6 }
         });
-      `;
+      };
       
-      // Run the confetti script in the page context
-      const scriptEl = document.createElement('script');
-      scriptEl.textContent = confettiScript;
-      document.body.appendChild(scriptEl);
-      scriptEl.remove();
+      console.log("[CaptchaConfetti] Test function ready: window.testCaptchaConfetti()");
     };
-    
-    console.log("[CaptchaConfetti] Extension ready. Type window.testCaptchaConfetti() to test");
-  });
-  
-  // Simple captcha detection 
-  watchForCaptchas();
-}
+    document.head.appendChild(script);
+  })();
+`);
 
+// Listen for messages from the page
+window.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'CAPTCHA_COMPLETED') {
+    console.log("[CaptchaConfetti] Received captcha completion message");
+    triggerConfetti();
+  }
+});
+
+// Function to trigger confetti
 function triggerConfetti() {
   console.log("[CaptchaConfetti] 🎉 Triggering confetti!");
-  const confettiScript = `
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-  `;
-  
-  // Run the confetti script in the page context
-  const scriptEl = document.createElement('script');
-  scriptEl.textContent = confettiScript;
-  document.body.appendChild(scriptEl);
-  scriptEl.remove();
+  injectScript(`
+    if (typeof confetti === 'function') {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    } else {
+      console.error("[CaptchaConfetti] Confetti function not available");
+    }
+  `);
 }
 
-function watchForCaptchas() {
-  // Watch for reCAPTCHA
-  document.addEventListener('click', function(event) {
-    // Check if clicked element might be a captcha checkbox or close to one
-    const clickedEl = event.target;
-    
-    // Look for recaptcha nearby
-    setTimeout(() => {
-      const captchaBox = document.querySelector('.recaptcha-checkbox[aria-checked="true"]');
-      if (captchaBox) {
-        console.log("[CaptchaConfetti] Captcha completed detected via click!");
-        triggerConfetti();
+// Set up captcha detection
+function setupCaptchaDetection() {
+  injectScript(`
+    // Function to watch for captcha completion
+    function watchForCaptchas() {
+      // Listen for clicks
+      document.addEventListener('click', function(event) {
+        // Check after a short delay to give captcha time to update
+        setTimeout(() => {
+          const captchaBox = document.querySelector('.recaptcha-checkbox[aria-checked="true"]');
+          if (captchaBox) {
+            console.log("[CaptchaConfetti] Captcha completed detected!");
+            window.postMessage({ type: 'CAPTCHA_COMPLETED' }, '*');
+          }
+        }, 1000);
+      });
+      
+      // Watch for form submissions
+      document.addEventListener('submit', function(event) {
+        if (document.querySelector('[class*="captcha"]') || 
+            document.querySelector('iframe[src*="captcha"]')) {
+          console.log("[CaptchaConfetti] Form with captcha submitted!");
+          window.postMessage({ type: 'CAPTCHA_COMPLETED' }, '*');
+        }
+      });
+      
+      // Watch for attribute changes on captcha elements
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          if (mutation.type === 'attributes' && 
+              mutation.attributeName === 'aria-checked' && 
+              mutation.target.getAttribute('aria-checked') === 'true') {
+            if (mutation.target.classList.contains('recaptcha-checkbox') || 
+               mutation.target.classList.contains('checkbox')) {
+              console.log("[CaptchaConfetti] Captcha checkbox checked!");
+              window.postMessage({ type: 'CAPTCHA_COMPLETED' }, '*');
+            }
+          }
+        });
+      });
+      
+      // Periodically look for captcha elements
+      function findCaptchas() {
+        const captchaElements = document.querySelectorAll('.recaptcha-checkbox, .checkbox[aria-checked]');
+        captchaElements.forEach(el => {
+          observer.observe(el, { attributes: true });
+        });
       }
-    }, 1000); // Short delay to allow captcha to update
-  });
-  
-  // Set up a mutation observer for the document
-  const observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-      if (mutation.type === 'attributes' && 
-          mutation.attributeName === 'aria-checked' && 
-          mutation.target.getAttribute('aria-checked') === 'true' &&
-          (mutation.target.classList.contains('recaptcha-checkbox') || 
-           mutation.target.classList.contains('checkbox'))) {
-        console.log("[CaptchaConfetti] Captcha checkbox checked detected!");
-        triggerConfetti();
-      }
-    });
-  });
-  
-  // Periodically look for captcha elements to observe
-  function findAndObserveCaptchas() {
-    const captchaElements = document.querySelectorAll('.recaptcha-checkbox, .checkbox[aria-checked]');
-    captchaElements.forEach(el => {
-      observer.observe(el, { attributes: true });
-    });
+      
+      // Run immediately and periodically
+      findCaptchas();
+      setInterval(findCaptchas, 2000);
+    }
     
-    // Also look for captcha iframes and forms
-    const captchaIframes = document.querySelectorAll('iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="cloudflare"]');
-    if (captchaIframes.length > 0) {
-      console.log("[CaptchaConfetti] Captcha iframes found:", captchaIframes.length);
-    }
-  }
-  
-  // Run immediately
-  findAndObserveCaptchas();
-  
-  // And periodically
-  setInterval(findAndObserveCaptchas, 2000);
-  
-  // Also watch for form submissions
-  document.addEventListener('submit', function(event) {
-    // If a form is being submitted and contains a captcha element, trigger confetti
-    const form = event.target;
-    if (form.querySelector('[class*="captcha"]') || 
-        document.querySelector('iframe[src*="captcha"]')) {
-      console.log("[CaptchaConfetti] Form with captcha submitted!");
-      triggerConfetti();
-    }
-  });
+    // Start watching
+    watchForCaptchas();
+    console.log("[CaptchaConfetti] Captcha detection active");
+  `);
 }
+
+// Start detection after a short delay to ensure the page is ready
+setTimeout(setupCaptchaDetection, 1000);
